@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>jobklick.it: Bewerbungen im Griff</title>
+    <meta name="description" content="Stelle gesehen, Rechtsklick, gespeichert: jobklick.it sammelt deine Bewerbungen für Praktikum, Werkstudentenjob und Abschlussarbeit an einem Ort." />
+    <meta property="og:title" content="jobklick.it" />
+    <meta property="og:description" content="Stelle gesehen, Rechtsklick, gespeichert: jobklick.it sammelt deine Bewerbungen für Praktikum, Werkstudentenjob und Abschlussarbeit an einem Ort." />
+    <meta property="og:type" content="website" />
+    <style>
+/* Shared by the Django app (base.html) and the browser extension popup.
+   Idea: a job ad printed out and marked with a lime highlighter. Black ink on white paper,
+   lime only where something is marked: the page title, the current place, and progress. */
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap");
+
+:root {
+  --paper: #ffffff;
+  --ink: #000000;
+  --grey: #5f5f5f; /* secondary text: 6.4:1 on white */
+  --line: #e2e2e2;
+  --marker: #c5f82a; /* never carries contrast alone: always paired with black */
+  --marker-soft: #ecfdb8;
+  --danger: #b3261e;
+  --radius: 8px;
+  --on-marker: #000000; /* text on lime is black in both themes */
+  --band-top: 42%; /* the highlighter stroke: lower part of the line */
+  --band-bottom: 92%;
+  color-scheme: light;
+}
+
+/* Dark: follows the system unless the toggle chose a theme (data-theme on <html>, see base.html). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #121212;
+    --ink: #f2f2f2;
+    --grey: #a8a8a8; /* 8:1 on --paper */
+    --line: #2f2f2f;
+    --marker-soft: #2c3a0c;
+    --danger: #ff7b72;
+    --band-top: 0%; /* on dark paper the marker covers the whole line: black text never sits on the dark */
+    --band-bottom: 100%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #121212;
+  --ink: #f2f2f2;
+  --grey: #a8a8a8; /* 8:1 on --paper */
+  --line: #2f2f2f;
+  --marker-soft: #2c3a0c;
+  --danger: #ff7b72;
+  --band-top: 0%; /* on dark paper the marker covers the whole line: black text never sits on the dark */
+  --band-bottom: 100%;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.5 "Bricolage Grotesque", system-ui, sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+svg.lucide {
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.15em;
+  margin-right: 0.35em;
+  stroke-width: 2.25;
+  flex: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* The highlighter stroke: lower 60% of the line, like a real marker swipe. */
+.marked {
+  background: linear-gradient(transparent var(--band-top), var(--marker) var(--band-top), var(--marker) var(--band-bottom), transparent var(--band-bottom));
+  color: var(--on-marker);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 0.12em;
+  margin: 0 -0.12em;
+}
+
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 24px 96px;
+}
+
+/* ---------- Theme toggle (base.html) ---------- */
+.navbar .theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+.navbar .theme-toggle:hover {
+  background: var(--marker);
+  color: var(--on-marker);
+}
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+.theme-toggle .moon,
+:root[data-theme="dark"] .theme-toggle .sun {
+  display: none;
+}
+:root[data-theme="dark"] .theme-toggle .moon {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .sun {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .theme-toggle .moon {
+    display: block;
+  }
+}
+
+/* ---------- Navigation ---------- */
+.navbar {
+  display: flex;
+  align-items: center;
+  gap: 6px 22px;
+  flex-wrap: wrap;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 18px 24px 16px;
+  border-bottom: 2px solid var(--ink);
+  font-weight: 600;
+}
+.navbar a {
+  text-decoration: none;
+}
+.navbar a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+.navbar a[aria-current="page"] {
+  background: linear-gradient(transparent var(--band-top), var(--marker) var(--band-top));
+  color: var(--on-marker);
+}
+.navbar .brand {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-right: 12px;
+}
+.navbar .brand svg.lucide {
+  display: none;
+}
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.navbar form {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--grey);
+  font-weight: 400;
+}
+.navbar button {
+  background: none;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink);
+}
+.navbar button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ---------- Page head ---------- */
+header {
+  margin: 28px 0 32px;
+}
+h1 {
+  font-size: clamp(40px, 7vw, 76px);
+  line-height: 0.98;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  margin: 0;
+  max-width: 18ch;
+  overflow-wrap: anywhere;
+}
+/* Big plus next to the page title (overview). */
+.title-row {
+  display: flex;
+  flex-wrap: wrap; /* on narrow screens the plus moves below, the title never breaks mid-word */
+  align-items: center;
+  gap: 12px 20px;
+}
+.title-row h1 {
+  overflow-wrap: normal;
+}
+.plus-big {
+  /* Sized from the h1's font size, so ring and plus have the same stroke weight as the letters:
+     Bricolage Grotesque 800 has stems of ~0.16em. */
+  font-size: clamp(40px, 7vw, 76px);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.1em;
+  height: 1.1em;
+  border: 0.16em solid var(--ink);
+  border-radius: 50%;
+  background: var(--marker);
+  color: var(--on-marker);
+}
+.plus-big svg.lucide {
+  width: 0.8em;
+  height: 0.8em;
+  margin: 0;
+  stroke-width: 4.8; /* 24-unit icon at 0.8em: 4.8 units = 0.16em, the letters' stem width */
+  stroke-linecap: butt;
+}
+.plus-big:hover {
+  background: var(--on-marker);
+  color: var(--marker);
+}
+.nav-new svg.lucide {
+  stroke-width: 3;
+}
+.add-row td {
+  padding: 14px 0;
+  border-bottom: none;
+}
+.add-row a {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  text-decoration: none;
+}
+.add-row a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+.add-row svg.lucide {
+  width: 1.4em;
+  height: 1.4em;
+  padding: 2px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--marker);
+  color: var(--on-marker);
+  stroke-width: 3;
+  margin-right: 0.5em;
+}
+h2 {
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 16px;
+}
+.subtitle {
+  color: var(--grey);
+  margin: 12px 0 0;
+  font-size: 18px;
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  color: var(--grey);
+  margin: 14px 0 0;
+  font-size: 17px;
+}
+.quiet {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.quiet:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+/* ---------- Filters ---------- */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 26px;
+}
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.chip .num {
+  font-variant-numeric: tabular-nums;
+  color: var(--grey);
+}
+.chip:hover {
+  background: var(--marker-soft);
+}
+.chip[aria-pressed="true"] {
+  background: var(--marker);
+  color: var(--on-marker);
+}
+.chip[aria-pressed="true"] .num {
+  color: var(--on-marker);
+}
+.chip.empty {
+  border-color: var(--line);
+  color: var(--grey);
+}
+.search {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  font-size: 17px;
+}
+.search::placeholder {
+  color: var(--grey);
+}
+.search:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--marker);
+}
+
+/* ---------- The list ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  text-align: left;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 14px 10px 0;
+  border-bottom: 2px solid var(--ink);
+}
+td {
+  padding: 16px 14px 16px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  color: var(--grey);
+  font-size: 14px;
+  margin-top: 2px;
+}
+.pos {
+  text-decoration: none;
+  font-weight: 500;
+}
+.pos:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+tr.closed .name,
+tr.closed .pos {
+  color: var(--grey);
+}
+td.date {
+  color: var(--grey);
+  font-size: 14px;
+  white-space: nowrap;
+}
+td.act {
+  text-align: right;
+  white-space: nowrap;
+}
+td.act form {
+  display: flex;
+  flex-direction: column; /* stacked: keeps the table inside medium-width windows */
+  align-items: flex-end;
+  gap: 6px;
+}
+td.act .link {
+  margin: 0;
+}
+td form {
+  margin: 0;
+}
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-right: 14px;
+  cursor: pointer;
+}
+.warn {
+  color: var(--danger);
+}
+
+#empty {
+  padding: 56px 0;
+}
+#empty h2 {
+  font-size: 32px;
+}
+#empty p {
+  color: var(--grey);
+  margin: 0;
+  max-width: 44ch;
+}
+
+/* ---------- Login and registration ---------- */
+.auth {
+  display: grid;
+  gap: 16px;
+  max-width: 440px;
+}
+.auth .actions {
+  margin-top: 4px;
+}
+
+/* ---------- The user's skills, marked in job descriptions (jobs/highlight.py) ---------- */
+mark.skill {
+  color: var(--on-marker);
+  background: linear-gradient(transparent var(--band-top), var(--marker) var(--band-top), var(--marker) var(--band-bottom), transparent var(--band-bottom));
+  padding: 0 0.1em;
+  font-weight: 700;
+}
+.skills-found {
+  margin: 0 0 16px;
+  line-height: 1.8;
+}
+
+/* ---------- Deleting and bulk actions ---------- */
+.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.btn-danger:hover {
+  background: var(--danger);
+  color: var(--paper);
+}
+.link.danger {
+  color: var(--danger);
+}
+.bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 0;
+  margin-bottom: 4px;
+}
+.bulk-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bulk-actions {
+  display: contents; /* its select and buttons line up in the bar */
+}
+.bulk-actions[hidden] {
+  display: none;
+}
+.bulk-count {
+  color: var(--grey);
+  min-width: 8ch;
+}
+.bulk select {
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  background: var(--paper);
+}
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+th.pick,
+td.pick {
+  width: 34px;
+}
+tr.picked td {
+  background: var(--marker-soft);
+}
+
+/* ---------- Status: the progress stroke ----------
+   Each pipeline step is a black-ringed dot; the path up to the current step is one thick
+   lime marker stroke. Black carries the contrast, lime says "done". */
+.status-control {
+  margin-top: 16px;
+}
+td .status-control {
+  margin-top: 0;
+}
+.rail {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.rail button {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  cursor: pointer;
+  display: flex;
+}
+.rail .bead {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--ink);
+  transition: transform 0.12s;
+}
+.rail button:hover .bead {
+  transform: scale(1.3);
+}
+.rail button[data-on] .bead {
+  background: var(--marker);
+}
+.rail button[aria-current] .bead {
+  background: var(--ink);
+  box-shadow: 0 0 0 4px var(--marker);
+}
+.rail button:focus-visible {
+  outline: none;
+}
+.rail button:focus-visible .bead {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+.rail .link {
+  width: 18px;
+  height: 6px;
+  background: var(--line);
+}
+.rail .link[data-on] {
+  background: var(--marker);
+}
+.closed .rail .bead,
+.closed .rail button[data-on] .bead {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--grey);
+}
+.closed .rail .link {
+  background: var(--line);
+}
+
+.status-menu {
+  position: relative;
+  display: inline-block;
+}
+.status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  cursor: pointer;
+  border: 2px solid var(--ink);
+  background: var(--marker);
+  color: var(--on-marker);
+  padding: 1px 8px 1px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.closed .status-label {
+  background: var(--paper);
+  border-color: var(--grey);
+  color: var(--grey);
+}
+.status-label::-webkit-details-marker {
+  display: none;
+}
+.status-label svg.lucide {
+  margin: 0;
+}
+.status-menu .pop {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: 5px 5px 0 var(--ink);
+  padding: 6px;
+}
+.status-menu .pop button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 15px;
+}
+.status-menu .pop button:hover {
+  background: var(--marker-soft);
+}
+.status-menu .pop button[aria-current] {
+  background: var(--marker);
+  color: var(--on-marker);
+  font-weight: 700;
+}
+.status-menu hr {
+  border: none;
+  border-top: 2px solid var(--ink);
+  margin: 6px 4px;
+}
+
+/* ---------- Content sections and forms (job, profile, extension popup) ---------- */
+.card {
+  margin: 0;
+}
+.card.pad {
+  border-top: 2px solid var(--ink);
+  padding: 22px 0 34px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+  max-width: 820px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label,
+dt {
+  font-size: 15px;
+  font-weight: 700;
+}
+.field input,
+.field select,
+.field textarea {
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  width: 100%;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--marker);
+}
+.helptext {
+  color: var(--grey);
+  font-size: 14px;
+}
+.errorlist {
+  color: var(--danger);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 22px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  padding: 9px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+}
+.btn:hover {
+  background: var(--marker-soft);
+}
+.btn-primary {
+  background: var(--marker);
+  color: var(--on-marker);
+}
+.btn-primary:hover {
+  background: var(--on-marker);
+  color: var(--marker);
+}
+
+/* ---------- Map (templates/jobs/_map.html) ---------- */
+.map {
+  height: 380px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  z-index: 0; /* keep Leaflet's panes under the status menu and toasts */
+}
+.leaflet-marker-icon.map-home {
+  /* Leaflet's CSS sets markers to display: block; the extra class wins so the house is centered. */
+  display: grid;
+  place-items: center;
+  background: #000; /* the map tiles stay light in both themes */
+  color: var(--marker);
+  border: 2px solid var(--marker);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #000;
+}
+.map-home svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+}
+.map-note {
+  display: block;
+  margin: 8px 0 28px;
+}
+.leaflet-container {
+  font: inherit;
+}
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.map-status {
+  color: var(--grey);
+  margin-top: 2px;
+}
+.map-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  font-weight: 700;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--paper);
+  color: var(--ink);
+}
+.leaflet-container a {
+  color: var(--ink);
+}
+
+/* ---------- Sending: see base.html ---------- */
+body.sending {
+  cursor: progress;
+}
+button:disabled {
+  cursor: progress;
+  opacity: 0.5;
+}
+button[aria-busy="true"] {
+  opacity: 1;
+}
+button[aria-busy="true"]::after {
+  content: "";
+  width: 0.9em;
+  height: 0.9em;
+  margin-left: 0.5em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: -0.1em;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button[aria-busy="true"]::after {
+    animation: none;
+    border-right-color: currentColor;
+    border-style: dotted;
+  }
+}
+
+/* ---------- Confirmation ---------- */
+.toast {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  background: var(--marker);
+  color: var(--on-marker);
+  border: 2px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--ink);
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 700;
+  animation: toast 3s forwards;
+  pointer-events: none;
+}
+.toast.error {
+  background: var(--paper);
+  border-color: var(--danger);
+  box-shadow: 5px 5px 0 var(--danger);
+  max-width: min(560px, calc(100vw - 48px));
+  animation-duration: 10s;
+}
+@keyframes toast {
+  0%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 760px) {
+  .wrap,
+  .navbar {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The list needs ~900px for five columns with the status rail; below that, one card per job. */
+@media (max-width: 900px) {
+  thead {
+    display: none;
+  }
+  tbody tr {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  td {
+    display: block;
+    border: none;
+    padding: 4px 0;
+  }
+  td.act {
+    text-align: left;
+  }
+  td.act form {
+    flex-direction: row;
+    gap: 14px;
+  }
+}
+
+    </style>
+    
+  <style>
+    .landing { padding-bottom: 40px; }
+    /* "Auf die Warteliste" glides down to the form; a jump for people who prefer less motion. */
+    @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+    #waitlist { scroll-margin-top: 24px; }
+
+    /* Hero: the pitch left, a highlighted job ad with the right-click menu right. */
+    .hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 56px; align-items: center; padding: 56px 0 72px; }
+    .hero h1 { max-width: none; font-size: clamp(36px, 5vw, 72px); }
+    .hero h1 .marked { display: inline-block; margin-bottom: 0.06em; white-space: nowrap; } /* one sentence per line */
+    .hero .lead { font-size: 20px; line-height: 1.5; max-width: 38ch; margin: 24px 0 0; }
+    .hero .actions { margin-top: 30px; }
+    .hero .btn { font-size: 18px; padding: 12px 22px; text-decoration: none; }
+
+    .ad { position: relative; margin: 0 0 120px; border: 2px solid var(--ink); border-radius: 10px; padding: 26px 28px 30px; background: var(--paper); box-shadow: 8px 8px 0 var(--ink); }
+    .ad .kicker { color: var(--grey); font-size: 14px; margin: 0 0 6px; }
+    .ad h2 { font-size: 26px; margin: 0 0 4px; }
+    .ad .where { color: var(--grey); margin: 0 0 18px; }
+    .ad ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+    .ad mark { background: linear-gradient(transparent var(--band-top), var(--marker) var(--band-top), var(--marker) var(--band-bottom), transparent var(--band-bottom)); color: var(--on-marker); padding: 0 2px; }
+    .menu {
+      position: absolute; right: -24px; top: calc(100% - 22px); width: 230px; background: var(--paper); border: 2px solid var(--ink);
+      border-radius: 8px; padding: 6px; font-size: 15px; box-shadow: 5px 5px 0 var(--ink);
+    }
+    .menu div { padding: 6px 10px; border-radius: 5px; color: var(--grey); }
+    .menu .hit { background: var(--marker); color: var(--on-marker); font-weight: 700; }
+    .menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }
+
+    /* How it works: a real sequence, so numbered. */
+    .steps { border-top: 2px solid var(--ink); padding-top: 34px; }
+    .steps ol { list-style: none; margin: 26px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+    .steps li { counter-increment: step; }
+    .steps li::before { content: counter(step); display: block; font-size: 64px; font-weight: 800; line-height: 1; letter-spacing: -0.04em; margin-bottom: 12px; }
+    .steps h3 { font-size: 21px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    .steps p { margin: 0; max-width: 34ch; }
+    .rail-demo { display: flex; align-items: center; margin-top: 14px; }
+    .rail-demo span { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink); }
+    .rail-demo i { width: 18px; height: 6px; background: var(--line); }
+    .rail-demo .on { background: var(--marker); }
+    .rail-demo .cur { background: var(--ink); box-shadow: 0 0 0 4px var(--marker); }
+    .rail-demo i.on { background: var(--marker); }
+
+    .extras { border-top: 2px solid var(--ink); margin-top: 64px; padding-top: 34px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+    .extras h3 { font-size: 19px; margin: 0 0 6px; }
+    .extras p { margin: 0; color: var(--grey); max-width: 34ch; }
+
+    .closing { margin-top: 72px; padding: 40px 0 0; border-top: 2px solid var(--ink); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
+    .closing h2 { font-size: clamp(28px, 4vw, 44px); margin: 0; }
+    .closing .btn { font-size: 18px; padding: 12px 22px; text-decoration: none; }
+
+    .waitlist { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+    .waitlist-text { font-size: 18px; max-width: 40ch; margin: 14px 0 0; }
+    .waitlist-form iframe { display: block; min-height: 120px; }
+
+    @media (max-width: 900px) {
+      .waitlist { grid-template-columns: 1fr; gap: 20px; }
+      .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 32px; }
+      .ad { margin-right: 12px; }
+      .menu { right: 8px; }
+      .steps ol, .extras { grid-template-columns: 1fr; gap: 28px; }
+    }
+  </style>
+
+    <script>
+      // Theme: the saved choice (toggle) before the page is drawn, so there's no flash; otherwise the system setting.
+      (() => {
+        const root = document.documentElement;
+        try { const saved = localStorage.getItem("theme"); if (saved) root.dataset.theme = saved; } catch {}
+        document.addEventListener("click", (e) => {
+          if (!e.target.closest("#theme-toggle")) return;
+          const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+          root.dataset.theme = dark ? "light" : "dark";
+          try { localStorage.setItem("theme", root.dataset.theme); } catch {}
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    
+      <nav class="navbar">
+        <a class="brand" href="./">jobklick.it</a>
+        
+          
+        
+        <div class="nav-right">
+          <button class="theme-toggle" type="button" id="theme-toggle" aria-label="Dunkles Design an/aus" title="Hell/Dunkel">
+            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+            </svg>
+          </button>
+          
+        </div>
+      </nav>
+    
+    <main>
+  <div class="wrap landing">
+    <section class="hero">
+      <div>
+        <h1><span class="marked">Stelle gesehen.</span><br /><span class="marked">Rechtsklick.</span><br /><span class="marked">Gespeichert.</span></h1>
+        <p class="lead">
+          jobklick.it sammelt deine Bewerbungen für Praktikum, Werkstudentenjob und Abschlussarbeit an einem Ort:
+          mit Status, Notizen, Anschreiben und Anfahrt.
+        </p>
+        <div class="actions">
+          
+            <a class="btn btn-primary" href="#waitlist">Auf die Warteliste</a>
+          
+        </div>
+      </div>
+
+      <figure class="ad" aria-label="Beispiel: eine Stellenanzeige, markiert und per Rechtsklick gespeichert">
+        <p class="kicker">Stellenanzeige</p>
+        <h2><mark>Werkstudent</mark> Data Science (m/w/d)</h2>
+        <p class="where">Beispiel GmbH, <mark>Tübingen</mark>, 15 Std./Woche</p>
+        <ul>
+          <li>Du studierst Informatik, Statistik oder etwas Ähnliches</li>
+          <li>Du kennst dich mit <mark>Python</mark> und SQL aus</li>
+          <li>Start: ab sofort, <mark>remote</mark> möglich</li>
+        </ul>
+        <div class="menu" aria-hidden="true">
+          <div>Zurück</div>
+          <div>Seite speichern unter …</div>
+          <hr />
+          <div class="hit">Job speichern</div>
+          <div>Bewerbungsformular ausfüllen</div>
+        </div>
+      </figure>
+    </section>
+
+    <section class="steps" aria-labelledby="steps-heading">
+      <h2 id="steps-heading">So läuft's</h2>
+      <ol>
+        <li>
+          <h3>Speichern, ohne abzutippen</h3>
+          <p>Mit der Browser-Erweiterung speicherst du eine Anzeige per Rechtsklick. Firma, Ort, Gehalt und Anforderungen liest jobklick.it selbst aus.</p>
+        </li>
+        <li>
+          <h3>Sehen, wo du stehst</h3>
+          <p>Jede Bewerbung hat ihren Stand, von „Neu“ über „Beworben“ bis „Angebot“. Ein Klick, und er ist aktuell.</p>
+          <div class="rail-demo" aria-hidden="true">
+            <span class="on"></span><i class="on"></i><span class="on"></span><i class="on"></i><span class="on"></span><i class="on"></i><span class="cur"></span><i></i><span></span><i></i><span></span>
+          </div>
+        </li>
+        <li>
+          <h3>Vorbereitet ins Gespräch</h3>
+          <p>Die KI schlägt Fragen für das Vorstellungsgespräch vor und schreibt einen ersten Entwurf fürs Anschreiben. Nur mit dem, was wirklich in deinem Profil steht.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="extras" aria-label="Außerdem">
+      <div>
+        <h3>Formulare in Sekunden</h3>
+        <p>Name, Adresse und Kontakt füllt die Erweiterung aus deinem Profil in Bewerbungsformulare ein.</p>
+      </div>
+      <div>
+        <h3>Anfahrt auf einen Blick</h3>
+        <p>Alle Stellen auf der Karte, mit Weg von zu Hause, mit Bus und Bahn oder dem Fahrrad.</p>
+      </div>
+      <div>
+        <h3>Ehrlich bei den Kosten</h3>
+        <p>Kostenlos, mit 20 KI-Anfragen inklusive. Danach nutzt du deinen eigenen API-Key, ohne Limit.</p>
+      </div>
+    </section>
+
+    
+      <section class="closing waitlist" id="waitlist" aria-labelledby="waitlist-heading">
+        <div>
+          <h2 id="waitlist-heading">Bald geht's los.</h2>
+          <p class="waitlist-text">jobklick.it öffnet Schritt für Schritt. Trag dich ein, dann schreiben wir dir, sobald du ein Konto anlegen kannst.</p>
+        </div>
+        <div class="waitlist-form">
+          
+          <iframe data-tally-src="https://tally.so/embed/VLg5Ra?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
+            loading="lazy" width="100%" height="177" frameborder="0" marginheight="0" marginwidth="0" title="Warteliste jobklick.it"></iframe>
+          <p class="helptext">Das Formular läuft über Tally (tally.so). Wir nutzen deine E-Mail nur, um dir Bescheid zu geben.</p>
+        </div>
+      </section>
+    
+  </div>
+</main>
+    
+  
+    <script>
+      // Tally's embed snippet, as provided: loads tally.so/widgets/embed.js, which fills in and sizes the iframe.
+      var d=document,w="https://tally.so/widgets/embed.js",v=function(){"undefined"!=typeof Tally?Tally.loadEmbeds():d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach((function(e){e.src=e.dataset.tallySrc}))};if("undefined"!=typeof Tally)v();else if(d.querySelector('script[src="'+w+'"]')==null){var s=d.createElement("script");s.src=w,s.onload=v,s.onerror=v,d.body.appendChild(s);}
+    </script>
+  
+
+  </body>
+</html>
