@@ -6,14 +6,12 @@
     <title>Bewerbungen einfach organisieren | jobklick.it</title>
     <link rel="icon" href="favicon.png" type="image/png" />
     
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" />
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=bricolage-grotesque:400,600,800" rel="stylesheet" />
     <style>
 /* Shared by the Django app (base.html) and the browser extension popup.
    Idea: a job ad printed out and marked with a lime highlighter. Black ink on white paper,
    lime only where something is marked: the page title, the current place, and progress. */
-
 :root {
   --paper: #ffffff;
   --ink: #000000;
@@ -62,7 +60,10 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font: 16px/1.5 "Bricolage Grotesque", system-ui, sans-serif;
+  font:
+    16px/1.5 "Bricolage Grotesque",
+    system-ui,
+    sans-serif;
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
 }
@@ -98,7 +99,12 @@ svg.lucide {
 
 /* The highlighter stroke: lower 60% of the line, like a real marker swipe. */
 .marked {
-  background: linear-gradient(transparent var(--band-top), var(--marker) var(--band-top), var(--marker) var(--band-bottom), transparent var(--band-bottom));
+  background: linear-gradient(
+    transparent var(--band-top),
+    var(--marker) var(--band-top),
+    var(--marker) var(--band-bottom),
+    transparent var(--band-bottom)
+  );
   color: var(--on-marker);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -113,7 +119,8 @@ svg.lucide {
 }
 
 /* ---------- Theme toggle (base.html) ---------- */
-.navbar .theme-toggle {
+.navbar .theme-toggle,
+.navbar .nav-account {
   display: inline-grid;
   place-items: center;
   width: 36px;
@@ -125,13 +132,17 @@ svg.lucide {
   color: var(--ink);
   cursor: pointer;
 }
+.navbar .nav-account[aria-current="page"],
+.navbar .nav-account:hover,
 .navbar .theme-toggle:hover {
   background: var(--marker);
   color: var(--on-marker);
 }
-.theme-toggle svg {
+.theme-toggle svg,
+.nav-account svg.lucide {
   width: 18px;
   height: 18px;
+  margin: 0;
 }
 .theme-toggle .moon,
 :root[data-theme="dark"] .theme-toggle .sun {
@@ -169,7 +180,10 @@ svg.lucide {
   text-decoration-thickness: 2px;
 }
 .navbar a[aria-current="page"] {
-  background: linear-gradient(transparent var(--band-top), var(--marker) var(--band-top));
+  background: linear-gradient(
+    transparent var(--band-top),
+    var(--marker) var(--band-top)
+  );
   color: var(--on-marker);
 }
 .navbar .brand {
@@ -373,6 +387,41 @@ h2 {
   outline: none;
   box-shadow: 0 0 0 4px var(--marker);
 }
+.search-box {
+  position: relative;
+}
+.suggest {
+  position: absolute;
+  z-index: 1000; /* above the Leaflet map */
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+}
+.suggest[hidden],
+.suggest li[hidden] {
+  display: none;
+}
+.suggest li {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.suggest li svg.lucide {
+  color: var(--grey);
+}
+.suggest li:hover,
+.suggest li[aria-selected="true"] {
+  background: var(--marker-soft);
+}
 
 /* ---------- The list ---------- */
 table {
@@ -403,6 +452,9 @@ td {
   color: var(--grey);
   font-size: 14px;
   margin-top: 2px;
+}
+.meta a {
+  color: inherit;
 }
 .pos {
   text-decoration: none;
@@ -473,7 +525,12 @@ button.link {
 /* ---------- The user's skills, marked in job descriptions (jobs/highlight.py) ---------- */
 mark.skill {
   color: var(--on-marker);
-  background: linear-gradient(transparent var(--band-top), var(--marker) var(--band-top), var(--marker) var(--band-bottom), transparent var(--band-bottom));
+  background: linear-gradient(
+    transparent var(--band-top),
+    var(--marker) var(--band-top),
+    var(--marker) var(--band-bottom),
+    transparent var(--band-bottom)
+  );
   padding: 0 0.1em;
   font-weight: 700;
 }
@@ -708,6 +765,17 @@ dt {
   outline: none;
   box-shadow: 0 0 0 4px var(--marker);
 }
+a[target="_blank"]::after {
+  content: "↗";
+  display: inline-block;
+  margin-inline-start: .3em;
+  font-family: sans-serif;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
 .helptext {
   color: var(--grey);
   font-size: 14px;
@@ -740,6 +808,12 @@ dt {
 }
 .btn:hover {
   background: var(--marker-soft);
+}
+.btn-icon {
+  padding: 9px;
+}
+.btn-icon svg.lucide {
+  margin-right: 0;
 }
 .btn-primary {
   background: var(--marker);
@@ -908,6 +982,19 @@ button[aria-busy="true"]::after {
     flex-direction: row;
     gap: 14px;
   }
+}
+
+/* ---------- Footer ---------- */
+.site-footer {
+  max-width: 1120px;
+  margin: 40px auto 0;
+  padding: 16px 24px 28px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--grey);
+}
+.site-footer a {
+  color: inherit;
 }
 
     </style>
@@ -1114,7 +1201,7 @@ button[aria-busy="true"]::after {
         </li>
         <li>
           <h3>Vorbereitet ins Gespräch</h3>
-          <p>Die KI schlägt Fragen für das Vorstellungsgespräch vor und schreibt einen ersten Entwurf fürs Anschreiben. Nur mit dem, was wirklich in deinem Profil steht.</p>
+          <p>Die KI schlägt Fragen für das Vorstellungsgespräch vor und schreibt einen ersten Entwurf fürs Anschreiben. Nur mit dem, was wirklich in deinem Bewerberprofil steht.</p>
         </li>
       </ol>
     </section>
@@ -1122,7 +1209,7 @@ button[aria-busy="true"]::after {
     <section class="extras" aria-label="Außerdem">
       <div>
         <h3>Formulare in Sekunden</h3>
-        <p>Name, Adresse und Kontakt füllt die Erweiterung aus deinem Profil in Bewerbungsformulare ein.</p>
+        <p>Name, Adresse und Kontakt füllt die Erweiterung aus deinem Bewerberprofil in Bewerbungsformulare ein.</p>
       </div>
       <div>
         <h3>Anfahrt auf einen Blick</h3>
@@ -1168,6 +1255,7 @@ button[aria-busy="true"]::after {
     
   </div>
 </main>
+    <footer class="site-footer"><a href="https://app.jobklick.it/datenschutz">Datenschutz</a></footer>
     
   
     <script>
