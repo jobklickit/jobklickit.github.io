@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <meta name="referrer" content="no-referrer">
+    <title>Anzeige speichern · jobklick.it</title>
+  </head>
+  <body>
+    <h1>Anzeige speichern</h1>
+    <p id="message">Diese Seite wurde nicht gefunden. Öffne die App, um eine Anzeige zu speichern.</p>
+    <p><a id="app-link" href="https://app.jobklick.it/jobs/new">Zur App</a></p>
+    <noscript>Bitte kopiere den Link zur Anzeige und füge ihn in der App ein.</noscript>
+    <script>
+      (() => {
+        // GitHub Pages serves this file for unknown paths. Only the explicit URL prefix is a shortcut.
+        const path = window.location.pathname;
+        if (!/^\/https?:\/+/.test(path)) return;
+        const target = path.slice(1).replace(/^(https?):\/+/, "$1://") + window.location.search + window.location.hash;
+        const destination = new URL(document.getElementById("app-link").href);
+        destination.searchParams.set("url", target);
+        destination.searchParams.set("via", "shortcut");
+        document.getElementById("app-link").href = destination.href;
+        document.getElementById("message").textContent = "Der Link wird in der App geöffnet. Dort kannst du die Anzeige speichern.";
+        window.location.replace(destination.href);
+      })();
+    </script>
+  </body>
+</html>
